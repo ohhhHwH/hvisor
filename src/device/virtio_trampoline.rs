@@ -7,6 +7,7 @@ use core::sync::atomic::Ordering;
 use spin::Mutex;
 
 use crate::arch::cpu::this_cpu_id;
+use crate::consts::MAX_CPU_NUM;
 use crate::device::irqchip::inject_irq;
 use crate::event::send_event;
 use crate::event::IPI_EVENT_WAKEUP_VIRTIO_DEVICE;
@@ -23,12 +24,12 @@ pub static VIRTIO_BRIDGE: Mutex<VirtioBridgeRegion> = Mutex::new(VirtioBridgeReg
 const QUEUE_NOTIFY: usize = 0x50;
 pub const MAX_REQ: u32 = 32;
 pub const MAX_DEVS: usize = 4; // Attention: The max virtio-dev number for vm is 4.
-pub const MAX_CPUS: usize = 16;
+pub const MAX_CPUS: usize = 4;
 pub const IRQ_WAKEUP_VIRTIO_DEVICE: usize = 32 + 0x20;
 
 /// non root zone's virtio request handler
 pub fn mmio_virtio_handler(mmio: &mut MMIOAccess, base: usize) -> HvResult {
-    debug!("mmio virtio handler");
+    // debug!("mmio virtio handler");
     let need_interrupt = if mmio.address == QUEUE_NOTIFY { 1 } else { 0 };
     if need_interrupt == 1 {
         debug!("notify !!!, cpu id is {}", this_cpu_id());
@@ -50,17 +51,21 @@ pub fn mmio_virtio_handler(mmio: &mut MMIOAccess, base: usize) -> HvResult {
         mmio.is_write,
         need_interrupt,
     );
+    // debug!("non root sends req: {:#x?}", hreq);
     let (cfg_flags, cfg_values) = unsafe {
         (
-            core::slice::from_raw_parts(dev.get_cfg_flags(), MAX_CPUS),
-            core::slice::from_raw_parts(dev.get_cfg_values(), MAX_CPUS),
+            core::slice::from_raw_parts(dev.get_cfg_flags(), MAX_CPU_NUM),
+            core::slice::from_raw_parts(dev.get_cfg_values(), MAX_CPU_NUM),
         )
     };
     let cpu_id = this_cpu_id() as usize;
     let old_cfg_flag = cfg_flags[cpu_id];
+    // debug!("old cfg flag: {:#x?}", old_cfg_flag);
     dev.push_req(hreq);
     // If req list is empty, send sgi to root linux to wake up virtio device.
+    #[cfg(not(target_arch = "loongarch64"))]
     if dev.need_wakeup() {
+        debug!("need wakeup, sending ipi to wake up virtio device");
         let root_cpu = root_zone().read().cpu_set.first_cpu().unwrap();
         send_event(root_cpu, SGI_IPI_ID as _, IPI_EVENT_WAKEUP_VIRTIO_DEVICE);
     }
@@ -74,16 +79,17 @@ pub fn mmio_virtio_handler(mmio: &mut MMIOAccess, base: usize) -> HvResult {
             count += 1;
             if count > 1000000 {
                 // warn!("virtio backend is too slow, please check it!");
-            	fence(Ordering::Acquire);
+                fence(Ordering::Acquire);
+                count = 0;
             }
         }
         if !mmio.is_write {
             // ensure cfg value is right.
             mmio.value = cfg_values[cpu_id] as _;
-            debug!("non root receives value: {:#x?}", mmio.value);
+            // debug!("non root receives value: {:#x?}", mmio.value);
         }
     }
-    debug!("non root returns");
+    // debug!("non root returns");
     Ok(())
 }
 
@@ -203,11 +209,11 @@ pub struct VirtioBridge {
     /// The first elem of res list, only hvisor updates
     pub res_front: u32,
     /// The last elem's next place of res list, only virtio device updates
-    res_rear: u32,
+    pub res_rear: u32,
     pub req_list: [HvisorDeviceReq; MAX_REQ as usize],
     pub res_list: [HvisorDeviceRes; MAX_REQ as usize], // irqs
-    cfg_flags: [u64; MAX_CPUS],
-    cfg_values: [u64; MAX_CPUS],
+    cfg_flags: [u64; MAX_CPU_NUM],
+    cfg_values: [u64; MAX_CPU_NUM],
     pub mmio_addrs: [u64; MAX_DEVS],
     pub mmio_avail: u8,
     pub need_wakeup: u8,
@@ -226,6 +232,7 @@ impl Debug for VirtioBridge {
 
 /// Hvisor device requests
 #[repr(C)]
+#[derive(Debug)]
 pub struct HvisorDeviceReq {
     pub src_cpu: u64,
     address: u64,
