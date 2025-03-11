@@ -54,11 +54,17 @@
 		"typeinfo": "c",
 		"virtio_ring.h": "c",
 		"virtio_blk.h": "c",
-		"stdint.h": "c"
+		"stdint.h": "c",
+		"bitset": "c",
+		"__locale": "c",
+		"locale": "c",
+		"tem": "cpp",
+		"cstdint": "c"
 	},
     "rust-analyzer.cargo.features": [
-        "platform_imx8mp"
-    ]
+        // "platform_imx8mp"
+		"platform_ok6254"
+	]
 }
 
 // {

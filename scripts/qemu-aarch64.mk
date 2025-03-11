@@ -20,9 +20,9 @@ QEMU_ARGS += -m 3G
 QEMU_ARGS += -nographic
 QEMU_ARGS += -bios $(UBOOT)
 
-QEMU_ARGS += -device loader,file="$(hvisor_bin)",addr=0x40400000,force-raw=on
-QEMU_ARGS += -device loader,file="$(zone0_kernel)",addr=0xa0400000,force-raw=on
-QEMU_ARGS += -device loader,file="$(zone0_dtb)",addr=0xa0000000,force-raw=on
+QEMU_ARGS += -device loader,file="$(hvisor_bin)",addr=0x80400000,force-raw=on
+QEMU_ARGS += -device loader,file="$(zone0_kernel)",addr=0x90400000,force-raw=on
+QEMU_ARGS += -device loader,file="$(zone0_dtb)",addr=0x90000000,force-raw=on
 # QEMU_ARGS += -device loader,file="$(zone1_kernel)",addr=0x70000000,force-raw=on
 # QEMU_ARGS += -device loader,file="$(zone1_dtb)",addr=0x91000000,force-raw=on
 
@@ -50,6 +50,6 @@ $(hvisor_bin): elf
 		sudo apt update && sudo apt install u-boot-tools; \
 	fi && \
 	$(OBJCOPY) $(hvisor_elf) --strip-all -O binary $(hvisor_bin).tmp && \
-	mkimage -n hvisor_img -A arm64 -O linux -C none -T kernel -a 0x40400000 \
-	-e 0x40400000 -d $(hvisor_bin).tmp $(hvisor_bin) && \
+	mkimage -n hvisor_img -A arm64 -O linux -C none -T kernel -a 0x80400000 \
+	-e 0x80400000 -d $(hvisor_bin).tmp $(hvisor_bin) && \
 	rm -rf $(hvisor_bin).tmp

@@ -36,18 +36,19 @@ pub const GICR_TYPER_LAST: usize = 1 << 4;
 
 pub fn enable_ipi() {
     let base = host_gicr_base(this_cpu_id()) + GICR_SGI_BASE;
-
     unsafe {
         let gicr_waker = (base + GICR_WAKER) as *mut u32;
+        info!("in enable_ipi() base:{:#x};gicr_waker:{:p};this_cpu_id:{}.",base, gicr_waker, this_cpu_id());
         gicr_waker.write_volatile(gicr_waker.read_volatile() & !0x02);
+        info!("2 enable_ipi is ok.");
         while gicr_waker.read_volatile() & 0x04 != 0 {}
-
+        info!("3 enable_ipi is ok.");
         let gicr_igroupr0 = (base + GICR_IGROUPR) as *mut u32;
         gicr_igroupr0.write_volatile(gicr_igroupr0.read_volatile() | (1 << SGI_IPI_ID));
-
+        info!("4 enable_ipi is ok.");
         let gicr_isenabler0 = (base + GICR_ISENABLER) as *mut u32;
         gicr_isenabler0.write_volatile(1 << SGI_IPI_ID);
-
+        info!("5 enable_ipi is ok.");
         let gicr_ipriorityr0 = (base + GICR_IPRIORITYR) as *mut u32;
         {
             let reg = SGI_IPI_ID / 4;
@@ -55,8 +56,9 @@ pub fn enable_ipi() {
             let mask = ((1 << 8) - 1) << offset;
             let p = gicr_ipriorityr0.add(reg as _);
             let prio = p.read_volatile();
-
+            info!("6 enable_ipi is ok.");
             p.write_volatile((prio & !mask) | (0x01 << offset));
+            info!("7 enable_ipi is ok.");
         }
     }
 }
